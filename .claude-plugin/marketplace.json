@@ -1,0 +1,26 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "typescript-skills",
+  "description": "Reusable TypeScript development skills for AI coding agents",
+  "owner": {
+    "name": "Martin Richards"
+  },
+  "plugins": [
+    {
+      "name": "typescript",
+      "description": "TypeScript APIs, tooling, testing, databases, Effect, Fastify, and functional patterns",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/typescript-api-design",
+        "./skills/typescript-build-tools",
+        "./skills/typescript-dynamodb-toolbox",
+        "./skills/typescript-drizzle-orm",
+        "./skills/typescript-effect-ts",
+        "./skills/typescript-fastify",
+        "./skills/typescript-functional-patterns",
+        "./skills/typescript-testing"
+      ]
+    }
+  ]
+}
