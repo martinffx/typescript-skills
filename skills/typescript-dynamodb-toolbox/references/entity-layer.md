@@ -58,10 +58,11 @@ HTTP Response
 import { type InputItem, type FormattedItem } from 'dynamodb-toolbox/entity'
 import { DateTime } from 'luxon'
 
-// Type exports from schema
-type IssueRecord = typeof IssueRecord
-type IssueInput = InputItem<typeof IssueRecord>
-type IssueFormatted = FormattedItem<typeof IssueRecord>
+// `IssueDdbEntity` is the DynamoDB Toolbox Entity declaration.
+// Keep it distinct from the domain `IssueEntity` class below.
+declare const IssueDdbEntity: import('dynamodb-toolbox/entity').Entity
+type IssueInput = InputItem<typeof IssueDdbEntity>
+type IssueFormatted = FormattedItem<typeof IssueDdbEntity>
 
 // API types
 interface IssueCreateRequest {

@@ -8,6 +8,22 @@ user-invocable: false
 
 Type-safe DynamoDB interactions with Entity and Table abstractions for single-table design.
 
+## Prerequisites
+
+- Use Node.js 18+ and TypeScript 5+ with `strict: true`.
+- Install `dynamodb-toolbox` with its peer dependencies, `@aws-sdk/client-dynamodb` and `@aws-sdk/lib-dynamodb`.
+- Give each `Table` a `DynamoDBDocumentClient` through `documentClient` (or assign it before sending commands). Configure `removeUndefinedValues: true` when records may contain optional fields.
+
+## Migrating v1 Code to v2
+
+- Replace `entityAttributeName` and `entityAttributeHidden` with `entityAttribute: { name, hidden }`. Keep it enabled for single-table designs; use `entityAttribute: false` only for independently queried entity-per-table data.
+- Keep `entityAttributeSavedAs` on the `Table`, not the `Entity`; it must be identical for every entity in a shared table.
+- Schemas no longer need `.freeze()`. Call `.check()` only when validating a standalone schema; `new Entity(...)` already checks its schema.
+- Use `item(...)` for root entity schemas, or pass a `map(...)` schema directly. `schema` and `s` replace the former `attr` shorthands.
+- Replace transformer `parse`/`format` with `encode`/`decode`, `ReadItem` with `DecodedItem`, and `ReadValue` with `DecodedValue`.
+- Replace instance `.name` reads with `.entityName` and `.tableName`.
+- Records keyed by a string enum are complete by default. Call `.partial()` when missing enum keys are valid.
+
 ## When to Use DynamoDB
 
 ✓ **Use when:**
@@ -37,10 +53,17 @@ See [references/modeling.md](references/modeling.md) for detailed methodology.
 ## Table Configuration
 
 ```typescript
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import { Table } from 'dynamodb-toolbox/table'
+
+const documentClient = DynamoDBDocumentClient.from(new DynamoDBClient(), {
+  marshallOptions: { removeUndefinedValues: true },
+})
 
 const AppTable = new Table({
   name: process.env.TABLE_NAME || "AppTable",
+  documentClient,
   partitionKey: { name: "PK", type: "string" },
   sortKey: { name: "SK", type: "string" },
   indexes: {
@@ -60,7 +83,7 @@ const AppTable = new Table({
       sortKey: { name: "GSI3SK", type: "string" },
     },
   },
-  entityAttributeSavedAs: "_et", // default, customize if needed
+  entityAttributeSavedAs: "_et", // shared by every entity in this table
 });
 ```
 
@@ -80,6 +103,7 @@ const AppTable = new Table({
 ```typescript
 import { Entity } from 'dynamodb-toolbox/entity'
 import { item } from 'dynamodb-toolbox/schema/item'
+import { boolean } from 'dynamodb-toolbox/schema/boolean'
 import { string } from 'dynamodb-toolbox/schema/string'
 
 const UserEntity = new Entity({
@@ -181,7 +205,9 @@ See [references/entity-layer.md](references/entity-layer.md) for transformation 
 ## Repository Pattern
 
 ```typescript
-import { PutItemCommand, GetItemCommand, DeleteItemCommand } from 'dynamodb-toolbox'
+import { DeleteItemCommand } from 'dynamodb-toolbox/entity/actions/delete'
+import { GetItemCommand } from 'dynamodb-toolbox/entity/actions/get'
+import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put'
 
 class UserRepository {
   constructor(private entity: UserRecord) {}
@@ -267,6 +293,24 @@ async listIssues(owner: string, repoName: string): Promise<Issue[]> {
 }
 ```
 
+### Multi-Entity Queries
+
+Pass every expected entity to `.entities(...)`. When all entities retain the shared internal entity attribute, DynamoDB Toolbox applies an entity filter and formats each returned item by its tag. If legacy items lack the tag, use `entityAttrFilter: false` only during migration and choose an explicit unmatched-item policy:
+
+```typescript
+const { Items } = await AppTable
+  .build(QueryCommand)
+  .entities(UserEntity, RepoEntity)
+  .query({ partition: `ACCOUNT#${username}` })
+  .options({
+    entityAttrFilter: false,
+    noEntityMatchBehavior: "DISCARD",
+  })
+  .send()
+```
+
+Without entity tags, Toolbox tries each entity schema in order, which is slower and can throw for an item that matches none. Do not disable the filter for steady-state single-table data.
+
 ### Query with Range Filter
 
 ```typescript
@@ -329,7 +373,7 @@ async listReposByOwner(owner: string, limit = 50, offset?: string) {
 ## Transactions
 
 See [references/transactions.md](references/transactions.md) for:
-- Multi-entity transactions (PutTransaction + ConditionCheck)
+- Multi-entity transactions (`PutTransaction` + `ConditionCheck`)
 - Atomic counters with `$add(1)`
 - TransactionCanceledException handling
 
@@ -352,7 +396,8 @@ See [references/testing.md](references/testing.md) for:
 
 **Types:**
 - `InputItem<T>` for writes (excludes computed attributes)
-- `FormattedItem<T>` for reads (includes all attributes)
+- `FormattedItem<T>` for formatted reads (excludes hidden attributes)
+- `DecodedItem<T>` when a read must include hidden attributes
 
 **Repository:**
 - Use `PutItemCommand` with `{ attr: "PK", exists: false }` for creates
