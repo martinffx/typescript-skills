@@ -29,8 +29,10 @@ Thrown by dynamodb-toolbox for schema validation errors.
 - Invalid attribute name
 
 **Properties:**
-- `path`: Field path that failed validation
-- `message`: Error description
+- `code`: Stable error identifier. Use this to narrow the specific Toolbox error.
+- `path`: Field path for errors that expose a path (mostly validation errors)
+- `payload`: Additional context for errors that expose it
+- `message`: Human-readable error description
 
 ### TransactionCanceledException
 
@@ -86,7 +88,7 @@ export class ValidationError extends Error {
 **Context:** Creating a new entity with duplicate prevention
 
 ```typescript
-import { PutItemCommand } from 'dynamodb-toolbox'
+import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put'
 import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb'
 import { DynamoDBToolboxError } from 'dynamodb-toolbox'
 
@@ -111,7 +113,7 @@ async create(user: UserEntity): Promise<UserEntity> {
     if (error instanceof DynamoDBToolboxError) {
       throw new ValidationError(
         error.path ?? "entity",
-        error.message
+        `${error.code}: ${error.message}`
       )
     }
 
@@ -149,7 +151,7 @@ async update(user: UserEntity): Promise<UserEntity> {
     }
 
     if (error instanceof DynamoDBToolboxError) {
-      throw new ValidationError(error.path ?? "entity", error.message)
+      throw new ValidationError(error.path ?? "entity", `${error.code}: ${error.message}`)
     }
 
     throw error
@@ -233,7 +235,7 @@ function handleTransactionError(
   }
 
   if (error instanceof DynamoDBToolboxError) {
-    throw new ValidationError(error.path ?? "entity", error.message)
+    throw new ValidationError(error.path ?? "entity", `${error.code}: ${error.message}`)
   }
 
   throw error
@@ -331,7 +333,7 @@ export function handleCreateError(
     throw new DuplicateEntityError(entityType, entityKey)
   }
   if (error instanceof DynamoDBToolboxError) {
-    throw new ValidationError(error.path ?? "entity", error.message)
+    throw new ValidationError(error.path ?? "entity", `${error.code}: ${error.message}`)
   }
   throw error
 }
@@ -345,7 +347,7 @@ export function handleUpdateError(
     throw new EntityNotFoundError(entityType, entityKey)
   }
   if (error instanceof DynamoDBToolboxError) {
-    throw new ValidationError(error.path ?? "entity", error.message)
+    throw new ValidationError(error.path ?? "entity", `${error.code}: ${error.message}`)
   }
   throw error
 }
@@ -479,7 +481,7 @@ app.post("/users", async (request, reply) => {
 
 - Don't expose DynamoDB error details to clients
 - Don't assume transaction error order - always check CancellationReasons
-- Don't ignore `DynamoDBToolboxError` - it indicates schema issues
+- Don't ignore `DynamoDBToolboxError`; inspect `code`, then use `path` or `payload` only when that error variant exposes them
 - Don't retry blindly on transaction errors (may have partial state)
 
 ## Error Handling Checklist

@@ -82,7 +82,7 @@ class IssueRepository {
 ### Create with Duplicate Prevention
 
 ```typescript
-import { PutItemCommand } from 'dynamodb-toolbox'
+import { PutItemCommand } from 'dynamodb-toolbox/entity/actions/put'
 import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb'
 
 async create(user: UserEntity): Promise<UserEntity> {
@@ -114,7 +114,7 @@ async create(user: UserEntity): Promise<UserEntity> {
 ### Read by Primary Key
 
 ```typescript
-import { GetItemCommand } from 'dynamodb-toolbox'
+import { GetItemCommand } from 'dynamodb-toolbox/entity/actions/get'
 
 async get(username: string): Promise<UserEntity | undefined> {
   const result = await this.entity
@@ -163,7 +163,7 @@ async update(user: UserEntity): Promise<UserEntity> {
 ### Delete
 
 ```typescript
-import { DeleteItemCommand } from 'dynamodb-toolbox'
+import { DeleteItemCommand } from 'dynamodb-toolbox/entity/actions/delete'
 
 async delete(username: string): Promise<void> {
   await this.entity
@@ -210,7 +210,7 @@ await this.entity
 ### Use UpdateItemCommand (Partial Update)
 
 ```typescript
-import { UpdateItemCommand, $add } from 'dynamodb-toolbox'
+import { UpdateItemCommand, $add } from 'dynamodb-toolbox/entity/actions/update'
 
 // Atomic counter increment
 await this.entity
@@ -491,7 +491,7 @@ const result = await this.table
 // result.Items has created and modified (properly formatted)
 ```
 
-**Rule:** Always use `.entities()` when querying Table to get type-safe, formatted results.
+**Rule:** Use `.entities()` whenever the query has known entity types so results are formatted and type-safe. For multiple entities, keep the shared entity attribute enabled: Toolbox then adds an entity filter. During a legacy migration, `entityAttrFilter: false` makes Toolbox attempt each supplied entity schema in order; use `noEntityMatchBehavior: "DISCARD"` only when unrelated items are expected.
 
 ## Common Patterns from gh-ddb
 

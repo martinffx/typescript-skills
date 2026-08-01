@@ -12,7 +12,7 @@ Ensure parent entity exists before creating child entity.
 
 ```typescript
 import { PutTransaction } from 'dynamodb-toolbox/entity/actions/transactPut'
-import { ConditionCheck } from 'dynamodb-toolbox'
+import { ConditionCheck } from 'dynamodb-toolbox/entity/actions/transactCheck'
 import { execute } from 'dynamodb-toolbox/entity/actions/transactWrite'
 
 async createIssue(issue: IssueEntity): Promise<IssueEntity> {
@@ -35,9 +35,10 @@ async createIssue(issue: IssueEntity): Promise<IssueEntity> {
       .condition({ attr: "PK", exists: true })  // Repo must exist
 
     // 3. Execute both operations in transaction
-    await execute(putIssueTransaction, repoCheckTransaction)
+    const { ToolboxItems } = await execute(putIssueTransaction, repoCheckTransaction)
 
-    // 4. Fetch the created item (transaction doesn't return it)
+    // 4. Fetch the created item when the full persisted record is needed.
+    // ToolboxItems[0] contains the Toolbox-generated item and timestamps.
     const created = await this.get(issue.owner, issue.repoName, issue.issueNumber)
     if (!created) {
       throw new Error("Failed to retrieve created issue")
@@ -60,7 +61,7 @@ async createIssue(issue: IssueEntity): Promise<IssueEntity> {
 - `PutTransaction` creates the new entity
 - `ConditionCheck` validates the parent exists
 - Both succeed or both fail (atomic)
-- Must fetch created item separately
+- `execute` returns `ToolboxItems` for put/update transactions; fetch separately when the complete persisted record is needed
 
 ### Advanced: Three-Way Validation
 
@@ -149,7 +150,7 @@ const CounterRecord = new Entity({
 ### Atomic Increment Implementation
 
 ```typescript
-import { UpdateItemCommand, $add } from 'dynamodb-toolbox'
+import { UpdateItemCommand, $add } from 'dynamodb-toolbox/entity/actions/update'
 
 class CounterRepository {
   constructor(private entity: CounterRecord) {}
@@ -274,7 +275,7 @@ current_value: $subtract(1)  // Decrement by 1
 ### $append
 
 ```typescript
-import { $append } from 'dynamodb-toolbox'
+import { $append } from 'dynamodb-toolbox/entity/actions/update'
 
 history: $append(['2024-01-01: Status changed to closed'])
 ```
@@ -284,7 +285,7 @@ Appends to list attribute. Creates list with value if attribute doesn't exist.
 ### $remove
 
 ```typescript
-import { $remove } from 'dynamodb-toolbox'
+import { $remove } from 'dynamodb-toolbox/entity/actions/update'
 
 deprecated_field: $remove()  // Remove attribute entirely
 ```

@@ -1,0 +1,23 @@
+{
+  "skill_name": "typescript-dynamodb-toolbox",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Define a DynamoDB Toolbox v2 User entity for a shared single-table design. The table uses PK/SK and GSI1PK/GSI1SK. User input has username and email; derive all keys from username. Include the table configuration and the TypeScript types used by repository writes and formatted reads.",
+      "expected_output": "Uses current v2 Table, Entity, item schema, linked keys, InputItem and FormattedItem APIs; keeps the shared entity attribute enabled.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Show a DynamoDB Toolbox v2 query that returns both User and Repository items for an account partition. Some legacy items do not have the internal entity attribute, and unrelated items in the partition must not fail the read. Explain the performance trade-off.",
+      "expected_output": "Uses QueryCommand with .entities(UserEntity, RepoEntity), entityAttrFilter: false, noEntityMatchBehavior: 'DISCARD', and explains that tagged items are the preferred steady-state path.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Write a DynamoDB Toolbox v2 transaction that creates an issue only if its repository exists. Use a conditional put, a condition check, execute(), and explain how to access Toolbox-generated timestamps.",
+      "expected_output": "Uses transactPut, transactCheck, transactWrite imports; applies the conditions to the correct actions; and obtains timestamps from execute(...).ToolboxItems.",
+      "files": []
+    }
+  ]
+}
