@@ -14,6 +14,18 @@ Install a specific skill:
 npx skills add martinffx/typescript-skills@typescript-fastify
 ```
 
+Install a released version:
+
+```bash
+npx skills add 'martinffx/typescript-skills#v0.1.0'
+```
+
+Install one skill from a released version:
+
+```bash
+npx skills add 'martinffx/typescript-skills#v0.1.0@typescript-fastify'
+```
+
 List the available skills:
 
 ```bash
