@@ -37,7 +37,7 @@ npx skills add martinffx/typescript-skills --list
 | Skill | Focus |
 | --- | --- |
 | `typescript-api-design` | REST API conventions, errors, and pagination |
-| `typescript-build-tools` | Bun, Vitest, Biome, and Turborepo |
+| `typescript-build-tools` | Bun or pnpm, TypeScript 7, Vitest, Biome or Oxc, and Turborepo |
 | `typescript-dynamodb-toolbox` | DynamoDB Toolbox entities and repositories |
 | `typescript-drizzle-orm` | Drizzle schemas, queries, and repositories |
 | `typescript-effect-ts` | Effect services, schemas, errors, and resources |
