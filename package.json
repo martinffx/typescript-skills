@@ -1,6 +1,6 @@
 {
   "name": "@martinffx/typescript-skills",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable TypeScript development skills for AI coding agents",
   "private": true,
   "repository": "github:martinffx/typescript-skills",
