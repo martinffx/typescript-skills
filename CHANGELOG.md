@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1](https://github.com/martinffx/typescript-skills/compare/v0.1.0...v0.1.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **release:** publish documentation changes ([fead1d6](https://github.com/martinffx/typescript-skills/commit/fead1d6bdba1e22e537b52c236633dd6f99537cf))
+
+
+### Documentation
+
+* **build-tools:** add pnpm and oxc guidance ([de279e6](https://github.com/martinffx/typescript-skills/commit/de279e60ac96767d23a372e6510d2c3d9f4e23f3))
+* **effect:** support v3 and v4 APIs ([5b2c5da](https://github.com/martinffx/typescript-skills/commit/5b2c5daab127f25c5f669e5797b8a310d6d392d2))
+
 ## 0.1.0 (2026-08-01)
 
 
