@@ -6,6 +6,11 @@ user-invocable: false
 
 # DynamoDB with dynamodb-toolbox v2
 
+Inspect the owning package and existing implementation first. Reuse established
+project types, helpers, errors, lifecycle behavior, and test utilities. The
+patterns below are options, not an implementation checklist. Introduce one only
+when the current task requires it.
+
 Type-safe DynamoDB interactions with Entity and Table abstractions for single-table design.
 
 ## Prerequisites
