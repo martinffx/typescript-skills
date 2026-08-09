@@ -1,205 +1,116 @@
 ---
 name: typescript-functional-patterns
-description: Functional programming patterns for reliable TypeScript. Use when modeling state machines, discriminated unions, Result/Option types, branded types, or building type-safe domain models.
+description: Selective use of functional TypeScript patterns. Use when a task explicitly involves an existing state machine or discriminated union, an Option/Result/Either/Effect API, a branded or opaque type, or deciding whether one is warranted. Do not use for ordinary validation or domain modeling that existing schemas and types already cover.
 user-invocable: false
 ---
 
-# Functional Patterns for Reliable TypeScript
+# Selective functional patterns
 
-Inspect the owning package and existing implementation first. Reuse established
-project types, helpers, errors, lifecycle behavior, and test utilities. The
-patterns below are options, not an implementation checklist. Introduce one only
-when the current task requires it.
+Functional patterns solve specific modeling defects. They are not a default
+architecture or an extra layer to place around working project types.
 
-## Project-specific rules
+## Start with the owning boundary
 
-- Remove paste-ready implementations of Result, Option, brands, and error helpers.
-- Reuse types supplied by installed libraries and the existing codebase.
-- Introduce a branded type only for a new invariant that is otherwise unsafe.
-- Do not create another branded ID or parser when a canonical one exists.
+Follow this order and stop at the first step that satisfies the task:
 
-Build reliable systems using Algebraic Data Types (ADTs), discriminated unions, Result/Option types, and branded types. These patterns enable the compiler to prove correctness, prevent runtime errors, and make illegal states unrepresentable.
+1. Reuse the owning boundary's existing schema, generated type, library type, or
+   public contract.
+2. Infer types with the installed tool's supported utilities.
+3. Compose, refine, or extend the canonical schema or type.
+4. Improve the representation at its owner when the task exposes a real gap.
+5. Introduce one minimal custom type only when the hard gate below is satisfied.
 
-## Why Functional Patterns?
+Do not continue down the list once the existing representation can express the
+requirement safely.
 
-**Reliability through types**: Use the type system to encode business rules, making invalid states impossible to construct. The compiler becomes your safety net, catching errors at build time rather than runtime.
+### Canonical owners
 
-**Key benefits:**
-- Exhaustiveness checking prevents missing cases
-- Impossible states become unrepresentable
-- Business logic encoded in types, not runtime checks
-- Refactoring becomes safe and mechanical
-- Self-documenting code through types
+- TypeBox schemas own their request and response shapes. Use
+  `Static<typeof Schema>` and TypeBox composition rather than handwritten mirrors.
+- Drizzle tables own their persistence shapes. Use `typeof table.$inferSelect`,
+  `typeof table.$inferInsert`, or the inference convention already used by the
+  package.
+- DynamoDB Toolbox entities own their item shapes. Use `InputItem<typeof Entity>`,
+  `FormattedItem<typeof Entity>`, and the entity's item schema.
+- Effect Schema and other installed schema libraries own their inferred types,
+  refinements, parse errors, and tagged schemas.
+- Installed functional libraries own their `Option`, `Result`, `Either`, and
+  effect types, constructors, and matching conventions.
+- Existing nullable, throwing, promise-based, generated, and plain TypeScript
+  contracts remain canonical when the project already uses them.
 
-## Quick Reference
+## Do not add a middle model
 
-For detailed patterns and examples, see:
-- [ADTs (Algebraic Data Types)](./references/adts.md) - Sum types, product types, discriminated unions
-- [Option & Result](./references/option-result.md) - Type-safe error handling and nullable values
-- [Branded Types](./references/branded-types.md) - Smart constructors and nominal typing
-- [Migration Guide](./references/migration-guide.md) - Step-by-step adoption playbook
+Do not place a handwritten tagged, branded, or class-based model between an API
+schema and a persistence schema merely to rename fields or repeat validation.
+Convert directly between the two boundary-owned shapes.
 
-## Core Patterns Overview
+Different boundaries may legitimately have different types. A TypeBox request,
+a Drizzle row, and a DynamoDB item do not need a third universal domain type to
+connect them. Reuse an existing behavior-rich domain entity when the package
+already has one, but do not create an entity class solely to wrap a row or item.
 
-### 1. Discriminated Unions (Sum Types)
+## Hard gate for a custom type
 
-Model "one of several variants" with exhaustive pattern matching:
+Add a custom tagged union, brand, opaque type, `Option`, or `Result` only when all
+of these conditions hold:
 
-```typescript
-type PaymentMethod =
-  | { kind: "card"; last4: string; brand: string }
-  | { kind: "ach"; accountNumber: string; routingNumber: string }
-  | { kind: "wallet"; provider: "apple" | "google" }
+1. The changed code contains a concrete defect, invalid state, or unsafe
+   interchange that the type should prevent.
+2. The owning schema, installed library, and current project types cannot express
+   the distinction through composition, refinement, literals, constraints, or
+   their native error model.
+3. The new type prevents the defect instead of restating validation or giving an
+   existing value another name.
+4. One boundary can own construction and validation consistently.
+5. The type does not introduce routine adapters, duplicate serializers, or a
+   second representation across callers, persistence, and tests.
 
-function processPayment(method: PaymentMethod): void {
-  switch (method.kind) {
-    case "card":
-      // TypeScript knows: method.last4 and method.brand exist
-      return processCard(method.last4, method.brand)
-    case "ach":
-      // TypeScript knows: method.accountNumber and method.routingNumber exist
-      return processACH(method.accountNumber, method.routingNumber)
-    case "wallet":
-      // TypeScript knows: method.provider exists
-      return processWallet(method.provider)
-    default:
-      assertNever(method) // Compiler error if cases missing
-  }
-}
-```
+If any condition fails, keep the existing representation.
 
-### 2. Option Type (Nullable Values)
+## Choose the smallest representation
 
-Use the project's existing nullable-value representation. If an installed library
-already supplies `Option`, use its constructors, combinators, and matching APIs
-instead of defining another type.
+- Use a literal union such as `"pending" | "settled"` before wrapping each value
+  in a tagged object.
+- Use a discriminated union when variants carry different data or when it removes
+  a demonstrated invalid combination of fields.
+- Use a brand only when values with the same primitive representation remain easy
+  to confuse after applying the existing schema and library tools.
+- Use the established nullable or failure contract before considering `Option` or
+  `Result`.
+- Keep runtime validation in the owning schema. A custom compile-time type must
+  not replace boundary validation.
 
-### 3. Result Type (Error Handling)
+Validation, nullability, recoverable failure, identifiers, and domain terminology
+do not by themselves justify a custom type.
 
-Use the project's established failure type for recoverable errors. Preserve its
-error values and propagation conventions rather than adding a parallel `Result`
-implementation or error hierarchy.
+## Working method
 
-### 4. Branded Types (Type-Safe Units)
+1. Inspect imports, package dependencies, schemas, generated types, public
+   contracts, and immediate callers.
+2. Name the specific unsafe state or operation required by the task.
+3. Reuse or extend the highest existing owner that can prevent it.
+4. Keep conversions at active boundaries and preserve public behavior unless the
+   task explicitly changes it.
+5. Test the changed behavior using the package's existing test utilities.
 
-Use an existing project brand or opaque type when one already represents the
-invariant. Add a brand only when a new invariant cannot otherwise be enforced
-safely at the relevant boundary.
+## References
 
-## When to Use
+Read only the reference needed for the active problem:
 
-### Use Discriminated Unions When:
-- Modeling state machines (pending → settled → reconciled)
-- Representing mutually exclusive variants (payment methods, user roles)
-- Building domain models with distinct states
-- Replacing boolean flags with explicit states
+- [ADTs](./references/adts.md) for deciding between literal and discriminated
+  unions
+- [Option and Result](./references/option-result.md) for absence and failure
+  contracts
+- [Branded types](./references/branded-types.md) for nominal distinctions and
+  units
+- [Migration guide](./references/migration-guide.md) for a focused change to an
+  existing codebase
 
-### Use Option When:
-- Value may be absent (but absence is expected/valid)
-- Replacing `null` or `undefined` checks
-- Chaining operations that may fail to find values
-- Making nullability explicit in APIs
+## Review checklist
 
-### Use Result When:
-- Operation may fail with recoverable errors
-- You need to propagate error context
-- Replacing try/catch for expected failures
-- Building error handling into function signatures
-
-### Use Branded Types When:
-- Preventing unit confusion (cents vs dollars, ms vs seconds)
-- Enforcing validation invariants (email format, positive numbers)
-- Introducing a new identifier invariant with no canonical project ID
-- Domain-driven design with value objects
-
-## Guidelines
-
-### Pattern Matching Best Practices
-
-1. Use the project's existing exhaustive matching convention, whether that is a
-   native `never` check, a library matcher, or a canonical helper.
-
-2. **Use discriminant field consistently** (`kind`, `type`, `_tag`):
-   ```typescript
-   type Status = { kind: "ready" } | { kind: "blocked"; reason: string }
-   ```
-
-3. **Narrow types early** to unlock type safety:
-   ```typescript
-   if (result._tag === "Ok") {
-     // TypeScript knows: result.value exists
-     return result.value.data
-   }
-   ```
-
-### Error Handling Strategy
-
-1. Use the existing Option-like type for expected absence.
-2. Use the existing Result-like type for recoverable errors.
-3. Preserve the project's exception and defect conventions for programmer errors.
-
-### Branded Types Guidelines
-
-1. Reuse canonical brands and their parsers or smart constructors.
-2. Add a brand only for a new invariant that primitive typing cannot protect.
-3. Validate new brands at the boundary where untrusted values enter.
-
-### Migration Strategy
-
-Keep the migration inside the current task. Reuse canonical types in the changed
-code, update its immediate consumers, and preserve existing compiler settings and
-public contracts unless the task explicitly changes them.
-
-## Examples by Domain
-
-### State Machine (Transaction Lifecycle)
-```typescript
-type TxnState =
-  | { kind: "pending"; createdAt: Date }
-  | { kind: "settled"; ledgerId: LedgerId; settledAt: Date }
-  | { kind: "failed"; reason: FailureReason; failedAt: Date }
-  | { kind: "reversed"; originalLedgerId: LedgerId; reversedAt: Date }
-
-function canReverse(state: TxnState): boolean {
-  switch (state.kind) {
-    case "pending": return false
-    case "settled": return true
-    case "failed": return false
-    case "reversed": return false
-    default: assertNever(state)
-  }
-}
-```
-
-### Configuration Parsing
-
-Parse configuration with the validation library and error type already used by
-the owning package. Keep its existing return shape and error reporting contract.
-
-### Financial Calculations
-
-Reuse the project's canonical money type and arithmetic helpers. Add a unit type
-only when the codebase lacks one and mixing the underlying primitives remains an
-active safety risk.
-
-## Further Reading
-
-- [ADT Reference](./references/adts.md) - Deep dive on sum types, product types, and pattern matching
-- [Option & Result Reference](./references/option-result.md) - Comprehensive error handling patterns
-- [Branded Types Reference](./references/branded-types.md) - Advanced nominal typing techniques
-- [Migration Guide](./references/migration-guide.md) - Step-by-step adoption playbook
-
-## Credits
-
-These patterns are inspired by **[Why Reliability Demands Functional Programming, ADTs, Safety and Critical Infrastructure](https://rastrian.com/why-reliability-demands-functional-programming-adts-safety-and-critical-infrastructure/)** by Rastrian. The blog post explores how functional programming techniques and Algebraic Data Types enable building reliable systems in critical infrastructure contexts.
-
-## When This Skill Loads
-
-This skill automatically loads when discussing:
-- Discriminated unions and sum types
-- State machine modeling
-- Result/Option types and error handling
-- Branded types and smart constructors
-- Type-safe domain models
-- Making illegal states unrepresentable
-- Functional programming in TypeScript
+- The owning schema, library, or project type was identified first.
+- Schema-derived and generated types remain canonical at their boundaries.
+- No unnecessary middle model or generic functional helper was added.
+- Every new custom type passes the hard gate.
+- The change fixes the named problem without spreading a second representation.
