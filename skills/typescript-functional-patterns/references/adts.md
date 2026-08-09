@@ -126,15 +126,12 @@ Each variant (sum type) contains multiple fields (product type).
 Model a transaction lifecycle as a state machine:
 
 ```typescript
-type Millis = number & { __brand: "Millis" }
-type Cents = number & { __brand: "Cents" }
-
 type TxnState =
-  | { kind: "pending"; createdAt: Millis }
-  | { kind: "authorized"; authCode: string; authorizedAt: Millis }
-  | { kind: "settled"; ledgerId: string; settledAt: Millis }
-  | { kind: "failed"; reason: FailureReason; failedAt: Millis }
-  | { kind: "reversed"; originalLedgerId: string; reversedAt: Millis }
+  | { kind: "pending"; createdAt: Date }
+  | { kind: "authorized"; authCode: string; authorizedAt: Date }
+  | { kind: "settled"; ledgerId: string; settledAt: Date }
+  | { kind: "failed"; reason: FailureReason; failedAt: Date }
+  | { kind: "reversed"; originalLedgerId: string; reversedAt: Date }
 
 type FailureReason =
   | { kind: "insufficient_funds" }
