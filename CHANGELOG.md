@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/martinffx/typescript-skills/compare/v0.1.2...v0.1.3) (2026-08-09)
+
+
+### Documentation
+
+* **skills:** make functional types a last resort ([61d1364](https://github.com/martinffx/typescript-skills/commit/61d13647af3828495e384186808b347a63f42634))
+
 ## [0.1.2](https://github.com/martinffx/typescript-skills/compare/v0.1.1...v0.1.2) (2026-08-09)
 
 
