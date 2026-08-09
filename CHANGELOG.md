@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/martinffx/typescript-skills/compare/v0.1.1...v0.1.2) (2026-08-09)
+
+
+### Documentation
+
+* **skills:** prioritize existing project patterns ([5ae26c0](https://github.com/martinffx/typescript-skills/commit/5ae26c0b3eae4d85ccd61ad9772bfcdaee6ddfcc))
+
 ## [0.1.1](https://github.com/martinffx/typescript-skills/compare/v0.1.0...v0.1.1) (2026-08-05)
 
 
