@@ -1,57 +1,54 @@
-# Branded and Opaque Types
+# Branded and opaque types
 
-Use a branded or opaque type only for a new invariant that remains unsafe with the
-project's current types. Reuse canonical IDs, units, validated values, parsers, and
-smart constructors whenever they exist.
+A brand adds a compile-time nominal distinction. It does not provide runtime
+validation, and a validated value does not automatically need a brand.
 
-## Inspect before introducing a brand
+## Keep schema-derived types canonical
 
-Search the owning package and its dependencies for:
+Use the owning tool before considering a brand:
 
-- the domain value or identifier;
-- an installed library's brand, opaque, schema, or refinement support;
-- canonical parsing and validation functions;
-- serialization and database mappings;
-- fixtures, generators, and test builders.
+- Infer API types from TypeBox, Effect Schema, Zod, Valibot, or the package's
+  current validation library.
+- Infer SQL persistence types from Drizzle tables.
+- Infer DynamoDB write and read shapes with DynamoDB Toolbox `InputItem` and
+  `FormattedItem`.
+- Reuse generated client types, database mappings, canonical identifiers, and
+  existing refinements.
 
-Do not create a second `UserId`, `Email`, money unit, timestamp unit, or parser to
-solve a local typing inconvenience. Import the canonical type or improve it at its
-owner when the current task requires that change.
+An email format, positive-number constraint, or identifier parser usually belongs
+in the schema that validates the boundary. Do not add a branded copy merely to
+repeat that validation elsewhere.
 
-## When a new brand is justified
+## Hard gate for a new brand
 
-A new brand is useful when all of these conditions hold:
+Add a brand only when all of these conditions hold:
 
-1. The value has a distinct invariant or unit.
-2. Mixing it with the underlying primitive can cause a real defect.
-3. No existing project or library type represents it.
-4. The owning boundary can validate or construct it consistently.
+1. Two values share a primitive representation but have a distinct unit or
+   meaning.
+2. Interchanging them can cause a concrete defect in the changed code.
+3. The existing schema, installed library, and canonical project types cannot
+   preserve the distinction.
+4. One owner can validate or construct every branded value consistently.
+5. The brand will not require parallel DTOs, row wrappers, item wrappers, casts,
+   or duplicate test fixtures throughout the application.
 
-Prefer a discriminated union, enum, schema-derived type, or small domain object
-when those better express the behavior. A brand should not stand in for missing
-runtime validation.
+If schema validation already makes the relevant operation safe, keep the inferred
+schema type. If a Drizzle column or DynamoDB entity already owns the identifier,
+improve that owner when the task requires a stronger distinction.
 
-## Construction and parsing
+## Construction
 
-Use the project's installed branding or schema facility. Keep construction behind
-the canonical parser or validator, and return the project's existing error type.
-Avoid standalone generic `Brand` aliases, casts scattered through application
-code, and duplicate smart-constructor libraries.
+Use the installed schema or branding facility when a brand passes the hard gate.
+Keep construction at the owner and return the project's existing failure type.
+Do not introduce a generic `Brand` module, scatter casts through application code,
+or build another smart-constructor library.
 
-At trusted internal boundaries, follow the existing project convention for
-constructing already validated values. At untrusted boundaries, validate before
-the value enters the domain.
-
-## Integration
-
-- Preserve the public wire representation during internal migrations.
-- Reuse database column types and mapping helpers already owned by the data layer.
-- Reuse canonical fixtures and generators in tests.
-- Keep serialization explicit when the library type is not JSON-native.
+Preserve existing wire and persistence representations unless the task changes
+them. Reuse the owner's serializers, database mappings, fixtures, and generators.
 
 ## Review checklist
 
-- The brand protects a new, concrete invariant.
-- No canonical type or parser already exists.
-- Runtime validation and error behavior match the owning package.
-- APIs, persistence, and fixtures continue to use one canonical representation.
+- The brand prevents a named interchange defect.
+- No schema, library, or canonical type already provides the distinction.
+- Runtime validation remains at the owning boundary.
+- Construction has one owner and callers do not need routine adapters or casts.
