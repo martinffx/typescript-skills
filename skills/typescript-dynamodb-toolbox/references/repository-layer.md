@@ -1,20 +1,21 @@
-# Repository Layer Patterns
+# Repository layer patterns
 
-The repository layer encapsulates all DynamoDB operations, providing a clean interface between domain entities and the database.
+The repository layer owns DynamoDB I/O and provides a typed boundary between
+domain entities and the database.
 
 ## Repository Responsibilities
 
-**What Repositories Do:**
+**What repositories do:**
 - Execute DynamoDB commands (Get, Put, Update, Delete, Query, Scan)
-- Enforce business constraints via conditional writes
+- Own transactions and conditional-write predicates
 - Handle pagination and filtering
-- Convert between DynamoDB records and domain entities
-- Map DynamoDB errors to domain errors
+- Convert items through domain `fromItem` and `toItem` methods
+- Classify AWS and DynamoDB Toolbox errors
 
-**What Repositories Don't Do:**
-- Business logic (belongs in Service layer)
-- Entity transformations (handled by Entity classes)
-- HTTP request/response handling (belongs in Router layer)
+**What repositories do not do:**
+- Orchestrate use cases or choose retry policy (service responsibility)
+- Implement entity transformations (domain-model responsibility)
+- Validate or serialize HTTP data (route responsibility)
 - Direct attribute manipulation (use Entity methods)
 
 ## Constructor Patterns
@@ -35,7 +36,7 @@ class UserRepository {
       .key({ username })
       .send()
 
-    return result.Item ? UserEntity.fromRecord(result.Item) : undefined
+    return result.Item ? UserEntity.fromItem(result.Item) : undefined
   }
 }
 ```
@@ -89,13 +90,13 @@ async create(user: UserEntity): Promise<UserEntity> {
   try {
     const result = await this.entity
       .build(PutItemCommand)
-      .item(user.toRecord())
+      .item(user.toItem())
       .options({
         condition: { attr: "PK", exists: false }  // Prevent duplicates
       })
       .send()
 
-    return UserEntity.fromRecord(result.ToolboxItem)
+    return UserEntity.fromItem(result.ToolboxItem)
   } catch (error: unknown) {
     if (error instanceof ConditionalCheckFailedException) {
       throw new DuplicateEntityError("UserEntity", user.username)
@@ -122,7 +123,7 @@ async get(username: string): Promise<UserEntity | undefined> {
     .key({ username })  // Provide key attributes only
     .send()
 
-  return result.Item ? UserEntity.fromRecord(result.Item) : undefined
+  return result.Item ? UserEntity.fromItem(result.Item) : undefined
 }
 ```
 
@@ -130,7 +131,7 @@ async get(username: string): Promise<UserEntity | undefined> {
 - Use `GetItemCommand`
 - Pass only key attributes to `.key()`
 - Return `undefined` if not found (don't throw)
-- Always convert via `Entity.fromRecord()`
+- Always convert via `Entity.fromItem()`
 
 ### Update with Existence Check
 
@@ -139,13 +140,13 @@ async update(user: UserEntity): Promise<UserEntity> {
   try {
     const result = await this.entity
       .build(PutItemCommand)
-      .item(user.toRecord())
+      .item(user.toItem())
       .options({
         condition: { attr: "PK", exists: true }  // Must exist
       })
       .send()
 
-    return UserEntity.fromRecord(result.ToolboxItem)
+    return UserEntity.fromItem(result.ToolboxItem)
   } catch (error: unknown) {
     if (error instanceof ConditionalCheckFailedException) {
       throw new EntityNotFoundError("UserEntity", user.username)
@@ -188,7 +189,7 @@ async delete(username: string): Promise<void> {
 // Replace entire item with entity state
 await this.entity
   .build(PutItemCommand)
-  .item(user.toRecord())  // Full entity
+  .item(user.toItem())  // Full entity
   .options({ condition: { attr: "PK", exists: true } })
   .send()
 ```
@@ -262,7 +263,7 @@ async listByPartition(username: string): Promise<Star[]> {
     })
     .send()
 
-  return result.Items?.map(item => StarEntity.fromRecord(item)) || []
+  return result.Items?.map(item => StarEntity.fromItem(item)) || []
 }
 ```
 
@@ -285,7 +286,7 @@ async listByRepo(owner: string, repoName: string): Promise<Issue[]> {
     })
     .send()
 
-  return result.Items?.map(item => IssueEntity.fromRecord(item)) || []
+  return result.Items?.map(item => IssueEntity.fromItem(item)) || []
 }
 ```
 
@@ -315,7 +316,7 @@ async listComments(
     })
     .send()
 
-  return result.Items?.map(item => CommentEntity.fromRecord(item)) || []
+  return result.Items?.map(item => CommentEntity.fromItem(item)) || []
 }
 ```
 
@@ -343,7 +344,7 @@ async listOpenIssues(owner: string, repoName: string): Promise<Issue[]> {
     })
     .send()
 
-  return result.Items?.map(item => IssueEntity.fromRecord(item)) || []
+  return result.Items?.map(item => IssueEntity.fromItem(item)) || []
 }
 ```
 
@@ -403,7 +404,7 @@ async listReposByOwner(
 
   return {
     items: result.Items?.map(item =>
-      RepositoryEntity.fromRecord(item)
+      RepositoryEntity.fromItem(item)
     ) || [],
     nextOffset: encodePageToken(result.LastEvaluatedKey),
   }
@@ -509,7 +510,7 @@ async list(owner: string, repoName: string): Promise<IssueEntity[]> {
     })
     .send()
 
-  return result.Items?.map(item => IssueEntity.fromRecord(item)) || []
+  return result.Items?.map(item => IssueEntity.fromItem(item)) || []
 }
 ```
 
@@ -540,7 +541,7 @@ async listByOwner(
 
   return {
     items: result.Items?.map(item =>
-      RepositoryEntity.fromRecord(item)
+      RepositoryEntity.fromItem(item)
     ) || [],
     offset: encodePageToken(result.LastEvaluatedKey),
   }
@@ -561,7 +562,7 @@ async getStarsByUser(username: string): Promise<StarEntity[]> {
     })
     .send()
 
-  return result.Items?.map(item => StarEntity.fromRecord(item)) || []
+  return result.Items?.map(item => StarEntity.fromItem(item)) || []
 }
 
 // Repo's stargazers (GSI1 - inverted)
@@ -579,7 +580,7 @@ async getStarsByRepo(
     })
     .send()
 
-  return result.Items?.map(item => StarEntity.fromRecord(item)) || []
+  return result.Items?.map(item => StarEntity.fromItem(item)) || []
 }
 ```
 
@@ -587,22 +588,22 @@ async getStarsByRepo(
 
 ### ✓ Do
 
-- Keep repositories focused on their primary entity
+- Keep repositories focused on their primary entity and I/O contract
 - Use conditional writes for create/update
-- Always convert via `Entity.fromRecord()`
+- Always convert via `Entity.fromItem()`
 - Return `undefined` for not found (don't throw on Get)
-- Map DynamoDB errors to domain errors
+- Classify AWS and Toolbox errors at the repository boundary
 - Use `.entities()` for type-safe queries
 - Encode pagination cursors as opaque tokens
 - Pass `Table` instance for cross-entity operations
 
 ### ✗ Don't
 
-- Don't include business logic (use Service layer)
+- Don't orchestrate use cases (use the service layer)
 - Don't return raw DynamoDB records
 - Don't query without `.entities()` (loses type safety)
 - Don't use Scan in production (performance cost)
-- Don't retry blindly on errors (may have partial state)
+- Don't choose retry policy; return a typed error for the service to interpret
 - Don't expose DynamoDB error details to clients
 - Don't create empty Sets (DynamoDB rejects them)
 

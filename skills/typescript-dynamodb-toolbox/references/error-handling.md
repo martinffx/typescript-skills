@@ -1,6 +1,8 @@
-# Error Handling Patterns
+# Error handling patterns
 
-Comprehensive error handling for DynamoDB operations with domain error mapping.
+Repositories classify AWS and DynamoDB Toolbox failures at the I/O boundary and
+return the project's typed errors. Services decide whether a failure warrants a
+retry. Routes translate those typed errors into HTTP responses.
 
 ## DynamoDB Error Types
 
@@ -96,13 +98,13 @@ async create(user: UserEntity): Promise<UserEntity> {
   try {
     const result = await this.entity
       .build(PutItemCommand)
-      .item(user.toRecord())
+      .item(user.toItem())
       .options({
         condition: { attr: "PK", exists: false }  // Prevent duplicates
       })
       .send()
 
-    return UserEntity.fromRecord(result.ToolboxItem)
+    return UserEntity.fromItem(result.ToolboxItem)
   } catch (error: unknown) {
     // Pattern: ConditionalCheckFailed → DuplicateEntityError
     if (error instanceof ConditionalCheckFailedException) {
@@ -137,13 +139,13 @@ async update(user: UserEntity): Promise<UserEntity> {
   try {
     const result = await this.entity
       .build(PutItemCommand)
-      .item(user.toRecord())
+      .item(user.toItem())
       .options({
         condition: { attr: "PK", exists: true }  // Must exist
       })
       .send()
 
-    return UserEntity.fromRecord(result.ToolboxItem)
+    return UserEntity.fromItem(result.ToolboxItem)
   } catch (error: unknown) {
     // Pattern: ConditionalCheckFailed → EntityNotFoundError
     if (error instanceof ConditionalCheckFailedException) {
@@ -360,11 +362,11 @@ async create(user: UserEntity): Promise<UserEntity> {
   try {
     const result = await this.entity
       .build(PutItemCommand)
-      .item(user.toRecord())
+      .item(user.toItem())
       .options({ condition: { attr: "PK", exists: false } })
       .send()
 
-    return UserEntity.fromRecord(result.ToolboxItem)
+    return UserEntity.fromItem(result.ToolboxItem)
   } catch (error: unknown) {
     handleCreateError(error, "UserEntity", user.username)
   }
@@ -421,11 +423,16 @@ Convert domain errors to HTTP responses:
 ```typescript
 // src/routes/users.ts (Fastify example)
 
+const serializeUser = (user: UserEntity): UserResponse => ({
+  username: user.username,
+  email: user.email,
+})
+
 app.post("/users", async (request, reply) => {
   try {
     const user = UserEntity.fromRequest(request.body)
     const created = await userService.create(user)
-    return reply.status(201).send(created.toResponse())
+    return reply.status(201).send(serializeUser(created))
   } catch (error) {
     if (error instanceof DuplicateEntityError) {
       return reply.status(409).send({

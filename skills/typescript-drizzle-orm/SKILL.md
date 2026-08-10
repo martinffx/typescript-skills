@@ -14,6 +14,12 @@ when the current task requires it.
 ## Project-specific rules
 
 - Prefer PostgreSQL constraints and driver behavior over application machinery.
+- Let established domain models own `fromRequest`, `fromRow`, and `toRow`.
+  Import inferred request and Drizzle row types with type-only imports instead of
+  creating mirror types.
+- Keep queries, transactions, write predicates, and driver error classification
+  in repositories. Services orchestrate use cases; routes validate and serialize
+  HTTP data.
 - Use the driver’s lifecycle methods before adding connection tracking or shutdown
   orchestration.
 - Require a current query or operational need before adding indexes, migrations,
@@ -280,8 +286,9 @@ task needs a domain boundary that plain inferred records cannot provide.
 ```typescript
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import type { users } from './schema'
+import type { CreateUserRequest } from './routes/users/schema'
 
-type UserRecord = InferSelectModel<typeof users>
+type UserRow = InferSelectModel<typeof users>
 type UserInsert = InferInsertModel<typeof users>
 
 class UserEntity {
@@ -304,18 +311,18 @@ class UserEntity {
     })
   }
 
-  // DB record → Entity
-  static fromRecord(record: UserRecord): UserEntity {
+  // DB row → Entity
+  static fromRow(row: UserRow): UserEntity {
     return new UserEntity({
-      id: record.id,
-      name: record.name,
-      email: record.email,
-      createdAt: record.createdAt,
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      createdAt: row.createdAt,
     })
   }
 
-  // Entity → DB insert
-  toRecord(): UserInsert {
+  // Entity → DB row
+  toRow(): UserInsert {
     return {
       id: this.id,
       name: this.name,
@@ -323,18 +330,10 @@ class UserEntity {
       createdAt: this.createdAt,
     }
   }
-
-  // Entity → API response
-  toResponse(): UserResponse {
-    return {
-      id: this.id,
-      name: this.name,
-      email: this.email,
-      createdAt: this.createdAt.toISOString(),
-    }
-  }
 }
 ```
+
+The route serializes `UserEntity` into the declared HTTP response schema.
 
 See [references/entity-pattern.md](./references/entity-pattern.md) for detailed examples.
 
@@ -357,16 +356,16 @@ class UserRepo {
       where: eq(users.id, id),
     })
     if (!record) throw new NotFoundError('User not found')
-    return UserEntity.fromRecord(record)
+    return UserEntity.fromRow(record)
   }
 
   async create(entity: UserEntity): Promise<UserEntity> {
     try {
       const [record] = await this.db
         .insert(users)
-        .values(entity.toRecord())
+        .values(entity.toRow())
         .returning()
-      return UserEntity.fromRecord(record)
+      return UserEntity.fromRow(record)
     } catch (error) {
       throw handleDBError(error, { userId: entity.id })
     }
@@ -375,11 +374,11 @@ class UserRepo {
   async update(entity: UserEntity): Promise<UserEntity> {
     const [record] = await this.db
       .update(users)
-      .set(entity.toRecord())
+      .set(entity.toRow())
       .where(eq(users.id, entity.id))
       .returning()
     if (!record) throw new NotFoundError('User not found')
-    return UserEntity.fromRecord(record)
+    return UserEntity.fromRow(record)
   }
 }
 ```
@@ -400,6 +399,8 @@ migration, index, retry, and connection examples remain conditional:
 1. Reuse the existing schema layout, inferred types, query style, and data-access boundaries.
 2. Prefer database constraints and native driver behavior to duplicate application checks.
 3. Add relations, repositories, or entities only when a current query or domain boundary needs them.
-4. Use `returning()` and error translation according to the current driver's behavior and project contract.
-5. Add optimistic locking or retries only for a demonstrated concurrency or operational requirement.
+4. Keep `returning()`, tenant and optimistic-write predicates, and driver error
+   classification in the repository.
+5. Add optimistic locking only for a demonstrated concurrency requirement. Let
+   the service decide whether to retry the use case.
 6. Close owned connections with the driver's lifecycle API in the existing shutdown path.

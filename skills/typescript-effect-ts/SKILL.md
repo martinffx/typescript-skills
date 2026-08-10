@@ -17,6 +17,11 @@ when the current task requires it.
 - Do not require a class, interface, service tag, and Layer for every capability.
 - Reuse existing IDs, errors, validation, database services, and runtime.
 - Keep Effect execution explicit at the application boundary.
+- A domain model may construct an Effect value for typed success, failure, or
+  absence. Construction is not I/O; keep the value free of external requirements
+  and do not run it in the domain model.
+- Keep Layers, runtimes, configuration, environment access, database clients,
+  and other I/O dependencies outside domain models.
 - Use native resource finalizers; do not surround sufficient library cleanup with
   custom lifecycle machinery.
 
