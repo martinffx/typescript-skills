@@ -1,6 +1,6 @@
 ---
 name: typescript-drizzle-orm
-description: Type-safe SQL with Drizzle ORM in TypeScript. Use when defining database schemas, writing queries, setting up relations, running migrations, or working with PostgreSQL/MySQL/SQLite/Cloudflare D1/Durable Objects data layers.
+description: Type-safe SQL with Drizzle ORM in TypeScript. Use when defining database schemas, writing queries, setting up relations, running migrations, working with PostgreSQL/MySQL/SQLite/Cloudflare D1/Durable Objects data layers, or integrating drizzle-orm/effect-postgres with @effect/sql-pg and Effect Layers.
 user-invocable: false
 ---
 
@@ -393,6 +393,11 @@ migration, index, retry, and connection examples remain conditional:
 - **[PostgreSQL patterns](./references/postgresql.md)** - Connection, migrations, column types, error codes, optimistic locking
 - **[SQLite patterns](./references/sqlite.md)** - Schema definition, type differences, better-sqlite3 testing
 - **[Cloudflare D1 & Durable Objects](./references/cloudflare.md)** - D1 connection, DO SQLite, testing with vitest-pool-workers, D1 vs DO decision guide
+- **[Effect PostgreSQL](https://orm.drizzle.team/docs/connect-effect-postgres)** - For
+  `drizzle-orm/effect-postgres`, confirm compatible Effect v4 peer dependencies.
+  When `typescript-effect-ts` is installed, also read its
+  `references/v4/drizzle-effect-postgres.md`; otherwise use the official guide.
+  Follow installed declarations when examples differ.
 
 ## Guidelines
 
@@ -403,4 +408,6 @@ migration, index, retry, and connection examples remain conditional:
    classification in the repository.
 5. Add optimistic locking only for a demonstrated concurrency requirement. Let
    the service decide whether to retry the use case.
-6. Close owned connections with the driver's lifecycle API in the existing shutdown path.
+6. Close owned connections with the driver's lifecycle API in the existing shutdown
+   path. For `@effect/sql-pg`, let its `PgClient` Layer own the pool lifecycle
+   instead of adding a second pool or shutdown path.

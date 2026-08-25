@@ -1,6 +1,6 @@
 ---
 name: typescript-effect-ts
-description: Build, review, or migrate TypeScript applications using Effect v3 or v4. Use whenever code imports from effect or @effect/*, or when working with Effect.gen, typed errors, Result or Either, Context services, Layer dependency injection, Schema validation, fibers, concurrency, Scope, or acquireRelease. Resolve the installed Effect major before suggesting APIs so v3 and v4 syntax are never mixed.
+description: Build, review, or migrate TypeScript applications using Effect v3 or v4. Use whenever code imports from effect or @effect/*, integrates drizzle-orm/effect-postgres with @effect/sql-pg, or works with Effect.gen, typed errors, Result or Either, Context services, Layer dependency injection, Schema validation, fibers, concurrency, Scope, or acquireRelease. Resolve the installed Effect major before suggesting APIs so v3 and v4 syntax are never mixed.
 user-invocable: false
 ---
 
@@ -48,6 +48,7 @@ After resolving the major, read the matching topic guide:
 | Services, dependency injection, layers | [v3 services](./references/v3/services.md) | [v4 services](./references/v4/services.md) |
 | Schema, decoding, encoding, validation | [v3 Schema](./references/v3/schema.md) | [v4 Schema](./references/v4/schema.md) |
 | Scope and resource safety | [v3 resources](./references/v3/resources.md) | [v4 resources](./references/v4/resources.md) |
+| Drizzle ORM with Effect PostgreSQL | Verify the installed driver supports v3 | [v4 Drizzle PostgreSQL](./references/v4/drizzle-effect-postgres.md) |
 
 For an upgrade from v3 to v4, first read [the migration guide](./references/v3-to-v4.md), then load the affected v4 topic guides.
 
