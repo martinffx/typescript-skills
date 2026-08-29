@@ -1,6 +1,9 @@
-# Transactions and Atomic Operations
+# Transactions and atomic operations
 
 Patterns for multi-entity consistency and atomic counters in DynamoDB.
+Repositories own transaction construction, conditional predicates, execution,
+and cancellation-reason classification. Services choose when the use case needs
+the transaction and whether a typed failure should be retried.
 
 ## Transaction Patterns
 
@@ -20,7 +23,7 @@ async createIssue(issue: IssueEntity): Promise<IssueEntity> {
     // 1. Build transaction to put issue with duplicate check
     const putIssueTransaction = this.issueRecord
       .build(PutTransaction)
-      .item(issue.toRecord())
+      .item(issue.toItem())
       .options({
         condition: { attr: "PK", exists: false }  // Prevent duplicates
       })
@@ -75,7 +78,7 @@ async createStar(star: StarEntity): Promise<StarEntity> {
     // 1. Build transaction to put star
     const putStarTransaction = this.starRecord
       .build(PutTransaction)
-      .item(star.toRecord())
+      .item(star.toItem())
       .options({
         condition: { attr: "PK", exists: false }
       })
@@ -205,7 +208,7 @@ async createIssue(issue: IssueEntity): Promise<IssueEntity> {
   try {
     const putIssueTransaction = this.issueRecord
       .build(PutTransaction)
-      .item(issueWithNumber.toRecord())
+      .item(issueWithNumber.toItem())
       .options({
         condition: { attr: "PK", exists: false }
       })
@@ -340,32 +343,35 @@ const counterId = `COUNTER#${orgId}#${repoId}#${shard}`
 ## Example: Complete Issue Creation Flow
 
 ```typescript
-class IssueRepository {
+class IssueService {
   constructor(
-    private table: Table,
-    private issueRecord: IssueRecord,
-    private counterRecord: CounterRecord,
-    private repoRecord: RepoRecord
+    private counterRepository: CounterRepository,
+    private issueRepository: IssueRepository
   ) {}
 
-  async create(issue: IssueEntity): Promise<IssueEntity> {
-    // Step 1: Get next issue number (atomic)
-    const issueNumber = await this.incrementCounter(
+  async create(request: IssueCreateRequest): Promise<IssueEntity> {
+    const issue = IssueEntity.fromRequest(request)
+    const issueNumber = await this.counterRepository.incrementAndGet(
       issue.owner,
       issue.repoName
     )
 
-    // Step 2: Create issue with number
-    const issueWithNumber = new IssueEntity({
-      ...issue,
-      issueNumber,
-    })
+    return this.issueRepository.create(issue.withIssueNumber(issueNumber))
+  }
+}
 
+class IssueRepository {
+  constructor(
+    private issueRecord: IssueRecord,
+    private repoRecord: RepoRecord
+  ) {}
+
+  async create(issue: IssueEntity): Promise<IssueEntity> {
     try {
-      // Step 3: Transaction - create issue + verify repo exists
+      // Repository-owned transaction and conditional predicates.
       const putIssue = this.issueRecord
         .build(PutTransaction)
-        .item(issueWithNumber.toRecord())
+        .item(issue.toItem())
         .options({ condition: { attr: "PK", exists: false } })
 
       const checkRepo = this.repoRecord
@@ -375,11 +381,10 @@ class IssueRepository {
 
       await execute(putIssue, checkRepo)
 
-      // Step 4: Fetch created issue
       const created = await this.get(
         issue.owner,
         issue.repoName,
-        issueNumber
+        issue.issueNumber
       )
 
       if (!created) {
@@ -390,29 +395,12 @@ class IssueRepository {
     } catch (error: unknown) {
       handleTransactionError(error, {
         entityType: "IssueEntity",
-        entityKey: issueWithNumber.getEntityKey(),
+        entityKey: issue.getEntityKey(),
         parentEntityType: "RepositoryEntity",
         parentEntityKey: issue.getParentEntityKey(),
         operationName: "issue",
       })
     }
-  }
-
-  private async incrementCounter(
-    owner: string,
-    repoName: string
-  ): Promise<number> {
-    const result = await this.counterRecord
-      .build(UpdateItemCommand)
-      .item({
-        org_id: owner,
-        repo_id: repoName,
-        current_value: $add(1),
-      })
-      .options({ returnValues: "ALL_NEW" })
-      .send()
-
-    return result.Attributes!.current_value
   }
 }
 ```
@@ -420,5 +408,7 @@ class IssueRepository {
 This pattern ensures:
 - ✓ Unique sequential issue numbers (atomic counter)
 - ✓ No orphaned issues (repo existence check)
+- ✓ Domain construction stays on `IssueEntity`
+- ✓ The service orchestrates the counter and issue repositories
 - ✓ No duplicate issues (PK exists check)
 - ✓ Consistent state (transaction)

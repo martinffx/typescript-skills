@@ -13,6 +13,18 @@ when the current task requires it.
 
 Type-safe DynamoDB interactions with Entity and Table abstractions for single-table design.
 
+## Responsibility boundaries
+
+- Let established domain models own `fromRequest`, `fromItem`, and `toItem`.
+  Use type-only `FormattedItem` and `InputItem` imports instead of handwritten
+  item mirrors.
+- Keep commands, queries, transactions, conditional-write predicates,
+  pagination, and AWS or Toolbox error classification in repositories.
+- Services orchestrate use cases and choose retry policy. Routes validate and
+  serialize HTTP data.
+- Domain models must not import DynamoDB clients, Toolbox commands, Layers,
+  runtime execution, configuration, or environment access.
+
 ## Prerequisites
 
 - Use Node.js 18+ and TypeScript 5+ with `strict: true`.
@@ -200,8 +212,8 @@ type UserFormatted = FormattedItem<typeof UserEntity> // For reads
 
 // Usage in entities
 class User {
-  static fromRecord(record: UserFormatted): User { /* ... */ }
-  toRecord(): UserInput { /* ... */ }
+  static fromItem(item: UserFormatted): User { /* ... */ }
+  toItem(): UserInput { /* ... */ }
 }
 ```
 
@@ -222,13 +234,13 @@ class UserRepository {
     try {
       const result = await this.entity
         .build(PutItemCommand)
-        .item(user.toRecord())
+        .item(user.toItem())
         .options({
           condition: { attr: "PK", exists: false }, // Prevent duplicates
         })
         .send()
 
-      return User.fromRecord(result.ToolboxItem)
+      return User.fromItem(result.ToolboxItem)
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) {
         throw new DuplicateEntityError("User", user.username)
@@ -244,7 +256,7 @@ class UserRepository {
       .key({ username })
       .send()
 
-    return result.Item ? User.fromRecord(result.Item) : undefined
+    return result.Item ? User.fromItem(result.Item) : undefined
   }
 
   // UPDATE with existence check
@@ -252,13 +264,13 @@ class UserRepository {
     try {
       const result = await this.entity
         .build(PutItemCommand)
-        .item(user.toRecord())
+        .item(user.toItem())
         .options({
           condition: { attr: "PK", exists: true }, // Must exist
         })
         .send()
 
-      return User.fromRecord(result.ToolboxItem)
+      return User.fromItem(result.ToolboxItem)
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) {
         throw new EntityNotFoundError("User", user.username)
@@ -294,7 +306,7 @@ async listIssues(owner: string, repoName: string): Promise<Issue[]> {
     })
     .send()
 
-  return result.Items?.map(item => Issue.fromRecord(item)) || []
+  return result.Items?.map(item => Issue.fromItem(item)) || []
 }
 ```
 
@@ -333,7 +345,7 @@ async listOpenIssues(owner: string, repoName: string): Promise<Issue[]> {
     })
     .send()
 
-  return result.Items?.map(item => Issue.fromRecord(item)) || []
+  return result.Items?.map(item => Issue.fromItem(item)) || []
 }
 ```
 
@@ -369,7 +381,7 @@ async listReposByOwner(owner: string, limit = 50, offset?: string) {
     .send()
 
   return {
-    items: result.Items?.map(item => Repo.fromRecord(item)) || [],
+    items: result.Items?.map(item => Repo.fromItem(item)) || [],
     nextOffset: encodePageToken(result.LastEvaluatedKey),
   }
 }
@@ -409,10 +421,12 @@ See [references/testing.md](references/testing.md) for:
 - Use `PutItemCommand` with `{ attr: "PK", exists: true }` for updates
 - Use `GetItemCommand` with `.key()` for reads
 - Use `QueryCommand` with `.entities()` for type-safe queries
+- Keep transactions, conditional-write predicates, and AWS or Toolbox error
+  classification here
 
 **Errors:**
 - `ConditionalCheckFailedException` → DuplicateEntityError (create) or EntityNotFoundError (update)
-- Always catch and convert to domain errors
+- Classify errors at the repository boundary; let services decide whether to retry
 
 **Testing:**
 - Use unique IDs per test run (timestamp-based)

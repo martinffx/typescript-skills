@@ -1,26 +1,30 @@
-# Entity Layer Transformation Patterns
+# Entity layer transformation patterns
 
-Domain entities manage all data transformations between layers, ensuring clean separation of concerns.
+Domain entities own construction, invariant-preserving changes, and typed request
+or item decoding. Routes own HTTP validation and response serialization;
+repositories own DynamoDB I/O.
 
-## The Four Transformation Methods
+## Transformation methods
 
-Every domain entity implements four methods for layer boundary crossing:
+An established domain entity may implement three methods for boundary crossing:
 
 ```typescript
 class EntityName {
   // 1. API Request → Domain Entity
   static fromRequest(request: EntityCreateRequest): EntityName
 
-  // 2. DynamoDB Record → Domain Entity
-  static fromRecord(record: EntityFormatted): EntityName
+  // 2. DynamoDB Item → Domain Entity
+  static fromItem(item: EntityFormatted): EntityName
 
-  // 3. Domain Entity → DynamoDB Record
-  toRecord(): EntityInput
-
-  // 4. Domain Entity → API Response
-  toResponse(): EntityResponse
+  // 3. Domain Entity → DynamoDB Item
+  toItem(): EntityInput
 }
 ```
+
+Import request and Toolbox item types with type-only imports. Domain models may
+construct typed Effect success, failure, or absence values, but they must not
+execute effects or import clients, commands, Layers, configuration, or
+environment access.
 
 ## Data Flow Through Layers
 
@@ -30,13 +34,13 @@ class EntityName {
 HTTP Request
     ↓ fromRequest()
 Domain Entity
-    ↓ toRecord()
-DynamoDB Record
+    ↓ toItem()
+DynamoDB Item
     ↓ DynamoDB save
-DynamoDB Record (with timestamps)
-    ↓ fromRecord()
+DynamoDB Item (with timestamps)
+    ↓ fromItem()
 Domain Entity
-    ↓ toResponse()
+    ↓ route serialization
 HTTP Response
 ```
 
@@ -45,10 +49,10 @@ HTTP Response
 ```
 HTTP Request
     ↓ repository.get(id)
-DynamoDB Record
-    ↓ fromRecord()
+DynamoDB Item
+    ↓ fromItem()
 Domain Entity
-    ↓ toResponse()
+    ↓ route serialization
 HTTP Response
 ```
 
@@ -57,37 +61,13 @@ HTTP Response
 ```typescript
 import { type InputItem, type FormattedItem } from 'dynamodb-toolbox/entity'
 import { DateTime } from 'luxon'
+import type { IssueCreateRequest } from '../routes/issues/schema'
 
 // `IssueDdbEntity` is the DynamoDB Toolbox Entity declaration.
 // Keep it distinct from the domain `IssueEntity` class below.
 declare const IssueDdbEntity: import('dynamodb-toolbox/entity').Entity
 type IssueInput = InputItem<typeof IssueDdbEntity>
 type IssueFormatted = FormattedItem<typeof IssueDdbEntity>
-
-// API types
-interface IssueCreateRequest {
-  owner: string
-  repo_name: string
-  title: string
-  body?: string
-  author: string
-  assignees?: string[]
-  labels?: string[]
-}
-
-interface IssueResponse {
-  owner: string
-  repo_name: string
-  issue_number: number
-  title: string
-  body?: string
-  status: "open" | "closed"
-  author: string
-  assignees: string[]
-  labels: string[]
-  created_at: string
-  updated_at: string
-}
 
 // Domain entity
 class IssueEntity {
@@ -120,7 +100,7 @@ class IssueEntity {
 
   // 1. API Request → Entity
   static fromRequest(data: IssueCreateRequest): IssueEntity {
-    // Validation
+    // The route validated the HTTP shape; the entity enforces domain invariants.
     IssueEntity.validate(data)
 
     return new IssueEntity({
@@ -136,27 +116,27 @@ class IssueEntity {
     })
   }
 
-  // 2. DynamoDB Record → Entity
-  static fromRecord(record: IssueFormatted): IssueEntity {
+  // 2. DynamoDB Item → Entity
+  static fromItem(item: IssueFormatted): IssueEntity {
     return new IssueEntity({
-      owner: record.owner,
-      repoName: record.repo_name,
-      issueNumber: record.issue_number,
-      title: record.title,
-      body: record.body,
-      status: record.status,
-      author: record.author,
+      owner: item.owner,
+      repoName: item.repo_name,
+      issueNumber: item.issue_number,
+      title: item.title,
+      body: item.body,
+      status: item.status,
+      author: item.author,
       // DynamoDB Sets → Arrays
-      assignees: record.assignees ? Array.from(record.assignees) : [],
-      labels: record.labels ? Array.from(record.labels) : [],
+      assignees: item.assignees ? Array.from(item.assignees) : [],
+      labels: item.labels ? Array.from(item.labels) : [],
       // ISO strings → DateTime
-      created: DateTime.fromISO(record.created),
-      modified: DateTime.fromISO(record.modified),
+      created: DateTime.fromISO(item.created),
+      modified: DateTime.fromISO(item.modified),
     })
   }
 
-  // 3. Entity → DynamoDB Record
-  toRecord(): IssueInput {
+  // 3. Entity → DynamoDB Item
+  toItem(): IssueInput {
     return {
       owner: this.owner,
       repo_name: this.repoName,
@@ -176,24 +156,7 @@ class IssueEntity {
     }
   }
 
-  // 4. Entity → API Response
-  toResponse(): IssueResponse {
-    return {
-      owner: this.owner,
-      repo_name: this.repoName,
-      issue_number: this.issueNumber,
-      title: this.title,
-      body: this.body,
-      status: this.status,
-      author: this.author,
-      assignees: this.assignees,
-      labels: this.labels,
-      created_at: this.created.toISO() ?? "",
-      updated_at: this.modified.toISO() ?? "",
-    }
-  }
-
-  // Validation (called by fromRequest)
+  // Domain invariant checks called by fromRequest
   private static validate(data: IssueCreateRequest): void {
     if (!data.title || data.title.trim().length === 0) {
       throw new ValidationError("title", "Title is required")
@@ -260,17 +223,17 @@ schema: item({
 ### Mapping in Transformations
 
 ```typescript
-// fromRecord: snake_case → camelCase
-static fromRecord(record: RepoFormatted): RepositoryEntity {
+// fromItem: snake_case → camelCase
+static fromItem(item: RepoFormatted): RepositoryEntity {
   return new RepositoryEntity({
-    repoName: record.repo_name,
-    isPrivate: record.is_private,
-    paymentPlanId: record.payment_plan_id,
+    repoName: item.repo_name,
+    isPrivate: item.is_private,
+    paymentPlanId: item.payment_plan_id,
   })
 }
 
-// toRecord: camelCase → snake_case
-toRecord(): RepoInput {
+// toItem: camelCase → snake_case
+toItem(): RepoInput {
   return {
     repo_name: this.repoName,
     is_private: this.isPrivate,
@@ -278,18 +241,18 @@ toRecord(): RepoInput {
   }
 }
 
-// toResponse: camelCase → snake_case (API convention)
-toResponse(): RepoResponse {
+// routes/repositories.ts: route-owned response serialization
+function serializeRepository(entity: RepositoryEntity): RepoResponse {
   return {
-    repo_name: this.repoName,
-    is_private: this.isPrivate,
-    payment_plan_id: this.paymentPlanId,
+    repo_name: entity.repoName,
+    is_private: entity.isPrivate,
+    payment_plan_id: entity.paymentPlanId,
   }
 }
 ```
 
-**Why snake_case for API responses?**
-Matches common REST API conventions and DynamoDB attribute names.
+The route serializer follows the declared HTTP response schema. DynamoDB
+attribute names do not determine the public API.
 
 ## DynamoDB Set Conversion
 
@@ -298,11 +261,11 @@ DynamoDB doesn't support empty Sets - convert to/from Arrays.
 ### Reading: Set → Array
 
 ```typescript
-static fromRecord(record: IssueFormatted): IssueEntity {
+static fromItem(item: IssueFormatted): IssueEntity {
   return new IssueEntity({
     // DynamoDB Set (or undefined) → Array
-    assignees: record.assignees ? Array.from(record.assignees) : [],
-    labels: record.labels ? Array.from(record.labels) : [],
+    assignees: item.assignees ? Array.from(item.assignees) : [],
+    labels: item.labels ? Array.from(item.labels) : [],
   })
 }
 ```
@@ -310,7 +273,7 @@ static fromRecord(record: IssueFormatted): IssueEntity {
 ### Writing: Array → Set (or undefined)
 
 ```typescript
-toRecord(): IssueInput {
+toItem(): IssueInput {
   return {
     // Array → Set (only if non-empty)
     assignees: this.assignees.length > 0
@@ -347,12 +310,12 @@ const entity = new Entity({
 ### Reading Timestamps
 
 ```typescript
-static fromRecord(record: UserFormatted): UserEntity {
+static fromItem(item: UserFormatted): UserEntity {
   return new UserEntity({
-    username: record.username,
+    username: item.username,
     // DynamoDB Toolbox returns ISO strings
-    created: DateTime.fromISO(record.created),
-    modified: DateTime.fromISO(record.modified),
+    created: DateTime.fromISO(item.created),
+    modified: DateTime.fromISO(item.modified),
   })
 }
 ```
@@ -360,9 +323,9 @@ static fromRecord(record: UserFormatted): UserEntity {
 ### Writing Timestamps
 
 ```typescript
-// Don't include created/modified in toRecord()
+// Don't include created/modified in toItem()
 // DynamoDB Toolbox handles them automatically
-toRecord(): UserInput {
+toItem(): UserInput {
   return {
     username: this.username,
     email: this.email,
@@ -412,10 +375,10 @@ async update(user: UserEntity): Promise<UserEntity> {
   // Save to DynamoDB
   const result = await this.entity
     .build(PutItemCommand)
-    .item(updated.toRecord())
+    .item(updated.toItem())
     .send()
 
-  return UserEntity.fromRecord(result.ToolboxItem)
+  return UserEntity.fromItem(result.ToolboxItem)
 }
 ```
 
@@ -508,10 +471,10 @@ Entity transformations are tested implicitly through repository tests, not in is
 ```typescript
 // ❌ Don't test transformations in isolation
 describe("IssueEntity", () => {
-  it("should convert to record", () => {
+  it("should convert to an input item", () => {
     const issue = new IssueEntity(/* ... */)
-    const record = issue.toRecord()
-    expect(record.owner).toBe(issue.owner)
+    const item = issue.toItem()
+    expect(item.owner).toBe(issue.owner)
   })
 })
 ```
@@ -544,18 +507,19 @@ describe("IssueRepository", () => {
 
 ### ✓ Do
 
-- Implement all four transformation methods
+- Implement only the transformation methods the entity needs
 - Use immutable entity properties
 - Return new instances from update methods
 - Convert Sets ↔ Arrays (handle empty sets)
 - Parse timestamps to DateTime objects
 - Validate in `fromRequest()`
 - Use helper methods for entity keys
+- Keep HTTP serialization in routes and DynamoDB I/O in repositories
 
 ### ✗ Don't
 
 - Don't mutate entity properties
-- Don't include timestamps in `toRecord()` (auto-managed)
+- Don't include timestamps in `toItem()` (auto-managed)
 - Don't create empty Sets (DynamoDB rejects them)
 - Don't test entity transformations in isolation
 - Don't include PK/SK in entity (computed by schema)
@@ -564,12 +528,12 @@ describe("IssueRepository", () => {
 
 For each domain entity:
 
-- [ ] **Four methods implemented** - fromRequest, fromRecord, toRecord, toResponse
+- [ ] **Transformations** - fromRequest, fromItem, and toItem as needed
 - [ ] **Immutable properties** - All fields marked `readonly`
 - [ ] **Immutable updates** - `updateEntity()` returns new instance
 - [ ] **Field naming** - camelCase in entity, snake_case in DB
 - [ ] **Set conversion** - Arrays ↔ Sets with empty check
-- [ ] **Timestamp handling** - DateTime objects, not included in toRecord
-- [ ] **Validation** - Business rules in fromRequest
+- [ ] **Timestamp handling** - DateTime objects, not included in toItem
+- [ ] **Validation** - Route validation at HTTP; domain invariants in fromRequest
 - [ ] **Helper methods** - getEntityKey() and getParentEntityKey()
 - [ ] **Type exports** - EntityInput and EntityFormatted from schema
