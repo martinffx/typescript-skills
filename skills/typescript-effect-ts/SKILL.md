@@ -9,13 +9,20 @@ user-invocable: false
 Inspect the owning package and existing implementation first. Reuse established
 project types, helpers, errors, lifecycle behavior, and test utilities. The
 patterns below are options, not an implementation checklist. Introduce one only
-when the current task requires it.
+when the current task requires it. Adopting Effect is not a mandate to maximize
+Effect usage.
 
 ## Project-specific rules
 
-- Create services and Layers only for real dependencies or resource lifetimes.
-- Do not require a class, interface, service tag, and Layer for every capability.
+- Keep pure, total transformations synchronous.
+- Add a `Context.Service` only for a real injected dependency. Add a `Layer` only
+  when constructing that dependency or managing a resource lifetime.
+- Add a tagged error only when callers handle it differently through HTTP mapping,
+  retry, cleanup, or orchestration.
 - Reuse existing IDs, errors, validation, database services, and runtime.
+- Preserve and reuse entity codecs; do not surround them with duplicate validation.
+- Treat existing code as evidence of project conventions, not automatic permission
+  to copy its ceremony.
 - Keep Effect execution explicit at the application boundary.
 - A domain model may construct an Effect value for typed success, failure, or
   absence. Construction is not I/O; keep the value free of external requirements
