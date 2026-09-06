@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/martinffx/typescript-skills/compare/v0.1.3...v0.1.4) (2026-08-29)
+
+
+### Documentation
+
+* **effect:** discourage unnecessary effect ceremony ([#14](https://github.com/martinffx/typescript-skills/issues/14)) ([4ffb26e](https://github.com/martinffx/typescript-skills/commit/4ffb26e32a15b7704f201296629c4694a4bf1922))
+* **skills:** clarify domain responsibility boundaries ([#12](https://github.com/martinffx/typescript-skills/issues/12)) ([11be952](https://github.com/martinffx/typescript-skills/commit/11be95262498fe182ceb7f26a04778fb60788f62))
+
 ## [0.1.3](https://github.com/martinffx/typescript-skills/compare/v0.1.2...v0.1.3) (2026-08-09)
 
 
